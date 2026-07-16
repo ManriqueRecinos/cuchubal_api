@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id            Int        @id @default(autoincrement())
+  nombre        String
+  email         String     @unique
+  password_hash String
+  activo        Boolean    @default(true)
+  creado_en     DateTime   @default(now())
+  
+  cuchubales    Cuchubal[]
+  pagos         Pago[]
+}
+
+model Cuchubal {
+  id          Int            @id @default(autoincrement())
+  nombre      String
+  monto_cuota Decimal        @default(20.00) @db.Decimal(10, 2)
+  activo      Boolean        @default(true)
+  creado_en   DateTime       @default(now())
+  
+  admin_id    Int
+  admin       Admin          @relation(fields: [admin_id], references: [id])
+  
+  participantes Participante[]
+  pagos       Pago[]
+}
+
+model Participante {
+  id          Int       @id @default(autoincrement())
+  nombre      String
+  activo      Boolean   @default(true)
+  
+  cuchubal_id Int
+  cuchubal    Cuchubal  @relation(fields: [cuchubal_id], references: [id])
+  
+  pagos       Pago[]
+}
+
+model Pago {
+  id                 Int          @id @default(autoincrement())
+  participante_id    Int
+  participante       Participante @relation(fields: [participante_id], references: [id])
+  
+  cuchubal_id        Int
+  cuchubal           Cuchubal     @relation(fields: [cuchubal_id], references: [id])
+  
+  mes                Int
+  anio               Int
+  quincena           String       // "15", "30", "mensual"
+  monto              Decimal      @db.Decimal(10, 2)
+  fecha_pago         DateTime
+  
+  registrado_por     Int
+  admin              Admin        @relation(fields: [registrado_por], references: [id])
+  
+  creado_en          DateTime     @default(now())
+}
