@@ -16,7 +16,13 @@ const server = http.createServer(app);
 initWebSocket(server);
 
 // Middlewares
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'https://cuchubalfrontend-production.up.railway.app'
+  ],
+  credentials: true
+}));
 app.use(express.json());
 
 // Rutas
@@ -26,6 +32,6 @@ app.use('/api/participantes', participantesRoutes);
 app.use('/api/pagos', pagosRoutes);
 
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-  console.log(`Servidor corriendo en el puerto ${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Servidor corriendo en 0.0.0.0:${PORT}`);
 });
