@@ -122,7 +122,7 @@ router.get('/reporte/whatsapp/:cuchubal_id', verificarCuchubal, async (req, res)
     for (const p of pagos) {
       const actual = pagosPorParticipante.get(p.participante_id) || { nombre: p.participante.nombre, total: 0, detalles: [] };
       actual.total += parseFloat(p.monto);
-      actual.detalles.push({ quincena: p.quincena, monto: parseFloat(p.monto) });
+      actual.detalles.push({ quincena: p.quincena, monto: parseFloat(p.monto), fecha_pago: p.fecha_pago });
       pagosPorParticipante.set(p.participante_id, actual);
     }
 
@@ -153,8 +153,11 @@ router.get('/reporte/whatsapp/:cuchubal_id', verificarCuchubal, async (req, res)
       msg += `_Nadie ha pagado aún._\n`;
     } else {
       pagaron.forEach((p, i) => {
-        const quincenas = p.detalles.map(d => d.quincena).join(', ');
-        msg += `${i + 1}. ${p.nombre} - $${p.total.toFixed(2)} (quincena${p.detalles.length > 1 ? 's' : ''}: ${quincenas}) ✓\n`;
+        const detalles = p.detalles.map(d => {
+          const fecha = new Date(d.fecha_pago).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+          return `Q${d.quincena} (${fecha})`;
+        }).join(', ');
+        msg += `${i + 1}. ${p.nombre} - $${p.total.toFixed(2)} [${detalles}] ✓\n`;
       });
     }
 
