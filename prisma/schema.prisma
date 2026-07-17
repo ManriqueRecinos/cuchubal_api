@@ -57,6 +57,7 @@ model Pago {
   quincena           String       // "15", "30", "mensual"
   monto              Decimal      @db.Decimal(10, 2)
   fecha_pago         DateTime
+  nota               String?
   
   registrado_por     Int
   admin              Admin        @relation(fields: [registrado_por], references: [id])

@@ -51,7 +51,7 @@ router.get('/cuchubal/:cuchubal_id', verificarCuchubal, async (req, res) => {
 // Registrar un nuevo pago
 router.post('/', verificarCuchubal, async (req, res) => {
   try {
-    const { participante_id, cuchubal_id, mes, anio, quincena, monto, fecha_pago } = req.body;
+    const { participante_id, cuchubal_id, mes, anio, quincena, monto, fecha_pago, nota } = req.body;
 
     const pago = await prisma.pago.create({
       data: {
@@ -62,6 +62,7 @@ router.post('/', verificarCuchubal, async (req, res) => {
         quincena,
         monto: parseFloat(monto),
         fecha_pago: new Date(fecha_pago || Date.now()),
+        nota: nota || null,
         registrado_por: req.adminId,
       },
       include: {
@@ -91,7 +92,7 @@ router.post('/', verificarCuchubal, async (req, res) => {
 // Registrar pago dividido automáticamente (15 y 30)
 router.post('/dividido', verificarCuchubal, async (req, res) => {
   try {
-    const { participante_id, cuchubal_id, mes, anio, montoTotal, fecha_pago } = req.body;
+    const { participante_id, cuchubal_id, mes, anio, montoTotal, fecha_pago, nota } = req.body;
     const mitad = parseFloat(montoTotal) / 2;
     const fecha = new Date(fecha_pago || Date.now());
 
@@ -104,6 +105,7 @@ router.post('/dividido', verificarCuchubal, async (req, res) => {
         quincena: '15',
         monto: mitad,
         fecha_pago: fecha,
+        nota: nota || null,
         registrado_por: req.adminId,
       },
       include: { participante: { select: { nombre: true } } }
@@ -118,6 +120,7 @@ router.post('/dividido', verificarCuchubal, async (req, res) => {
         quincena: '30',
         monto: mitad,
         fecha_pago: fecha,
+        nota: nota || null,
         registrado_por: req.adminId,
       },
       include: { participante: { select: { nombre: true } } }
