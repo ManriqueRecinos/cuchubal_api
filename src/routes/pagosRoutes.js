@@ -117,7 +117,7 @@ router.get('/reporte/whatsapp/:cuchubal_id', verificarCuchubal, async (req, res)
       orderBy: { participante: { nombre: 'asc' } }
     });
 
-    // Sumar montos por participante
+    // Sumar montos por participante y por quincena
     const pagosPorParticipante = new Map();
     for (const p of pagos) {
       const actual = pagosPorParticipante.get(p.participante_id) || { nombre: p.participante.nombre, total: 0, detalles: [] };
@@ -133,44 +133,67 @@ router.get('/reporte/whatsapp/:cuchubal_id', verificarCuchubal, async (req, res)
     for (const part of participantes) {
       const info = pagosPorParticipante.get(part.id);
       if (info && info.total > 0) {
-        pagaron.push({ ...part, total: info.total, detalles: info.detalles });
+        // Consolidar por quincena (puede haber varios abonos parciales a la misma quincena)
+        const porQuincena = new Map();
+        for (const d of info.detalles) {
+          const q = porQuincena.get(d.quincena) || { quincena: d.quincena, monto: 0, fecha_pago: d.fecha_pago };
+          q.monto += d.monto;
+          porQuincena.set(d.quincena, q);
+        }
+        // Ordenar quincenas: 15 primero, 30 después, luego otras
+        const quincenasOrdenadas = [...porQuincena.values()].sort((a, b) => {
+          const orden = { '15': 1, '30': 2 };
+          return (orden[a.quincena] || 99) - (orden[b.quincena] || 99);
+        });
+        pagaron.push({ ...part, total: info.total, quincenas: quincenasOrdenadas });
       } else {
         pendientes.push(part);
       }
     }
 
+    // Etiqueta legible para la quincena
+    const etiquetaQuincena = (q) => {
+      if (q === '15') return '1ra Quincena (día 15)';
+      if (q === '30') return '2da Quincena (día 30)';
+      return `Quincena ${q}`;
+    };
+
     const totalRecaudado = pagaron.reduce((s, p) => s + p.total, 0);
-    const totalEsperado = participantes.length * cuota;
+    const totalEsperado = participantes.length * cuota * 2; // 2 quincenas por participante
     const totalPendiente = Math.max(totalEsperado - totalRecaudado, 0);
 
     // Construir mensaje WhatsApp
     let msg = `*CUCHUBAL "${cuchubal.nombre}"*\n`;
     msg += `Reporte de pagos - ${meses[mes - 1]} ${anio}\n`;
-    msg += `Cuota quincenal: $${cuota.toFixed(2)}\n\n`;
+    msg += `Cuota quincenal: $${cuota.toFixed(2)}\n`;
+    msg += `Total mensual por persona: $${(cuota * 2).toFixed(2)}\n\n`;
 
-    msg += `*✅ Han pagado (${pagaron.length}/${participantes.length})*\n`;
+    msg += `*✅ Han pagado (${pagaron.length}/${participantes.length})*\n\n`;
     if (pagaron.length === 0) {
       msg += `_Nadie ha pagado aún._\n`;
     } else {
       pagaron.forEach((p, i) => {
-        const detalles = p.detalles.map(d => {
-          const fecha = new Date(d.fecha_pago).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
-          return `Quincena ${d.quincena} (${fecha})`;
-        }).join(', ');
-        msg += `${i + 1}. ${p.nombre} - $${p.total.toFixed(2)} [${detalles}] ✓\n`;
+        const completo = p.total >= cuota * 2;
+        msg += `${i + 1}. *${p.nombre}* - Total: $${p.total.toFixed(2)} ${completo ? '✅' : '⏳'}\n`;
+        p.quincenas.forEach(q => {
+          const fecha = new Date(q.fecha_pago).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+          const completa = q.monto >= cuota;
+          msg += `     • ${etiquetaQuincena(q.quincena)}: $${q.monto.toFixed(2)} - ${fecha} ${completa ? '✓' : '⚠️ parcial'}\n`;
+        });
+        msg += `\n`;
       });
     }
 
-    msg += `\n*❌ Pendientes (${pendientes.length})*\n`;
+    msg += `*❌ Pendientes (${pendientes.length})*\n`;
     if (pendientes.length === 0) {
       msg += `_¡Todos han pagado! 🎉_\n`;
     } else {
       pendientes.forEach((p, i) => {
-        msg += `${i + 1}. ${p.nombre}\n`;
+        msg += `${i + 1}. ${p.nombre} - Debe: $${(cuota * 2).toFixed(2)}\n`;
       });
     }
 
-    msg += `\n*Resumen:*\n`;
+    msg += `\n*📊 Resumen:*\n`;
     msg += `Recaudado: $${totalRecaudado.toFixed(2)}\n`;
     msg += `Esperado: $${totalEsperado.toFixed(2)}\n`;
     msg += `Pendiente: $${totalPendiente.toFixed(2)}\n`;
@@ -183,6 +206,7 @@ router.get('/reporte/whatsapp/:cuchubal_id', verificarCuchubal, async (req, res)
         mes_nombre: meses[mes - 1],
         cuchubal: cuchubal.nombre,
         cuota,
+        cuota_mensual: cuota * 2,
         total_participantes: participantes.length,
         total_pagaron: pagaron.length,
         total_pendientes: pendientes.length,
