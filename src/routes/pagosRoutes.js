@@ -146,7 +146,7 @@ router.get('/reporte/whatsapp/:cuchubal_id', verificarCuchubal, async (req, res)
     // Construir mensaje WhatsApp
     let msg = `*CUCHUBAL "${cuchubal.nombre}"*\n`;
     msg += `Reporte de pagos - ${meses[mes - 1]} ${anio}\n`;
-    msg += `Cuota mensual: $${cuota.toFixed(2)}\n\n`;
+    msg += `Cuota quincenal: $${cuota.toFixed(2)}\n\n`;
 
     msg += `*✅ Han pagado (${pagaron.length}/${participantes.length})*\n`;
     if (pagaron.length === 0) {
