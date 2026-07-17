@@ -19,7 +19,8 @@ initWebSocket(server);
 app.use(cors({
   origin: [
     'http://localhost:5173',
-    'https://cuchubalfrontend-production.up.railway.app'
+    'https://cuchubalfrontend-production.up.railway.app',
+    'https://cuchubalfrontend-development.up.railway.app'
   ],
   credentials: true
 }));
