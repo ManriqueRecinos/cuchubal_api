@@ -155,7 +155,7 @@ router.get('/reporte/whatsapp/:cuchubal_id', verificarCuchubal, async (req, res)
       pagaron.forEach((p, i) => {
         const detalles = p.detalles.map(d => {
           const fecha = new Date(d.fecha_pago).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
-          return `Q${d.quincena} (${fecha})`;
+          return `Quincena ${d.quincena} (${fecha})`;
         }).join(', ');
         msg += `${i + 1}. ${p.nombre} - $${p.total.toFixed(2)} [${detalles}] ✓\n`;
       });
