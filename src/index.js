@@ -25,7 +25,12 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Rutas
+// Rutas de prueba (Health check)
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', message: 'API de Cuchubales en línea y funcionando correctamente 🚀' });
+});
+
+// Rutas de la API
 app.use('/api/auth', authRoutes);
 app.use('/api/cuchubales', cuchubalesRoutes);
 app.use('/api/participantes', participantesRoutes);
