@@ -89,6 +89,113 @@ router.post('/', verificarCuchubal, async (req, res) => {
   }
 });
 
+// Reporte de pagos del mes en formato WhatsApp (copiar y pegar)
+router.get('/reporte/whatsapp/:cuchubal_id', verificarCuchubal, async (req, res) => {
+  try {
+    const cuchubal_id = Number(req.params.cuchubal_id);
+    const fechaActual = new Date();
+    const mes = req.query.mes ? Number(req.query.mes) : fechaActual.getMonth() + 1;
+    const anio = req.query.anio ? Number(req.query.anio) : fechaActual.getFullYear();
+
+    const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+    const cuchubal = await prisma.cuchubal.findUnique({
+      where: { id: cuchubal_id },
+      select: { nombre: true, monto_cuota: true }
+    });
+
+    // Participantes activos del cuchubal
+    const participantes = await prisma.participante.findMany({
+      where: { cuchubal_id, activo: true },
+      orderBy: { nombre: 'asc' }
+    });
+
+    // Pagos del mes/año indicado
+    const pagos = await prisma.pago.findMany({
+      where: { cuchubal_id, mes, anio },
+      include: { participante: { select: { nombre: true } } },
+      orderBy: { participante: { nombre: 'asc' } }
+    });
+
+    // Sumar montos por participante
+    const pagosPorParticipante = new Map();
+    for (const p of pagos) {
+      const actual = pagosPorParticipante.get(p.participante_id) || { nombre: p.participante.nombre, total: 0, detalles: [] };
+      actual.total += parseFloat(p.monto);
+      actual.detalles.push({ quincena: p.quincena, monto: parseFloat(p.monto) });
+      pagosPorParticipante.set(p.participante_id, actual);
+    }
+
+    const cuota = parseFloat(cuchubal.monto_cuota);
+    const pagaron = [];
+    const pendientes = [];
+
+    for (const part of participantes) {
+      const info = pagosPorParticipante.get(part.id);
+      if (info && info.total > 0) {
+        pagaron.push({ ...part, total: info.total, detalles: info.detalles });
+      } else {
+        pendientes.push(part);
+      }
+    }
+
+    const totalRecaudado = pagaron.reduce((s, p) => s + p.total, 0);
+    const totalEsperado = participantes.length * cuota;
+    const totalPendiente = Math.max(totalEsperado - totalRecaudado, 0);
+
+    // Construir mensaje WhatsApp
+    let msg = `*CUCHUBAL "${cuchubal.nombre}"*\n`;
+    msg += `Reporte de pagos - ${meses[mes - 1]} ${anio}\n`;
+    msg += `Cuota mensual: $${cuota.toFixed(2)}\n\n`;
+
+    msg += `*✅ Han pagado (${pagaron.length}/${participantes.length})*\n`;
+    if (pagaron.length === 0) {
+      msg += `_Nadie ha pagado aún._\n`;
+    } else {
+      pagaron.forEach((p, i) => {
+        const quincenas = p.detalles.map(d => d.quincena).join(', ');
+        msg += `${i + 1}. ${p.nombre} - $${p.total.toFixed(2)} (quincena${p.detalles.length > 1 ? 's' : ''}: ${quincenas}) ✓\n`;
+      });
+    }
+
+    msg += `\n*❌ Pendientes (${pendientes.length})*\n`;
+    if (pendientes.length === 0) {
+      msg += `_¡Todos han pagado! 🎉_\n`;
+    } else {
+      pendientes.forEach((p, i) => {
+        msg += `${i + 1}. ${p.nombre}\n`;
+      });
+    }
+
+    msg += `\n*Resumen:*\n`;
+    msg += `Recaudado: $${totalRecaudado.toFixed(2)}\n`;
+    msg += `Esperado: $${totalEsperado.toFixed(2)}\n`;
+    msg += `Pendiente: $${totalPendiente.toFixed(2)}\n`;
+
+    res.json({
+      mensaje: msg,
+      resumen: {
+        mes,
+        anio,
+        mes_nombre: meses[mes - 1],
+        cuchubal: cuchubal.nombre,
+        cuota,
+        total_participantes: participantes.length,
+        total_pagaron: pagaron.length,
+        total_pendientes: pendientes.length,
+        total_recaudado: totalRecaudado,
+        total_esperado: totalEsperado,
+        total_pendiente: totalPendiente,
+      },
+      pagaron,
+      pendientes,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al generar el reporte.' });
+  }
+});
+
 // Registrar pago dividido automáticamente (15 y 30)
 router.post('/dividido', verificarCuchubal, async (req, res) => {
   try {
